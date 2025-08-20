@@ -12,7 +12,7 @@ print("Columns in dataset:", df.columns.tolist())
 if "subject" in df.columns:
     df["subject"] = df["subject"].fillna("")
 else:
-    df["subject"] = ""  # if subject not available, keep empty
+    df["subject"] = ""  
 
 if "body" in df.columns:
     df["body"] = df["body"].fillna("")
