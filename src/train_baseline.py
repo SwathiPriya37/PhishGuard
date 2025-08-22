@@ -1,68 +1,53 @@
 # src/train_baseline.py
-
 import pandas as pd
-import re
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
+from sklearn.preprocessing import LabelEncoder
 
-# 1. Load Data
-
-df = pd.read_csv("data/processed/processed_data.csv")
+# 1. Load cleaned dataset
+df = pd.read_csv("data/cleaned/cleaned_emails.csv")
 print("Data shape:", df.shape)
+print(df.head())
 
-# 2. Preprocessing
-def clean_text(text):
-    if pd.isna(text):
-        return ""
-    text = str(text).lower()
-    text = re.sub(r"http\S+", " URL ", text)  # replace URLs
-    text = re.sub(r"[^a-z0-9\s]", " ", text)  # remove special chars
-    return text.strip()
+# 2. Handle missing text values
+df['clean_text'] = df['clean_text'].fillna("").astype(str)
 
-df["clean_text"] = df["text"].apply(clean_text)
+# Drop rows with completely empty text (optional but safer)
+df = df[df['clean_text'].str.strip() != ""]
 
-# Handle empty text
-df["clean_text"] = df["clean_text"].fillna("").astype(str)
-df.loc[df["clean_text"].str.strip() == "", "clean_text"] = "emptyemail"
+print("After cleaning NaNs:", df.shape)
 
-# Features
-X_text = df["clean_text"]
-X_features = df.drop(columns=["text", "label", "clean_text"], errors="ignore")
-y = df["label"]
+# 3. Features and labels
+X_text = df['clean_text']
+X_features = df[['num_urls', 'long_urls']]
 
-# 3. Debug Checks
+y = df['label']
+if y.dtype == object:
+    y = LabelEncoder().fit_transform(y)
 
-print("X_text length:", len(X_text))
-print("X_features length:", len(X_features))
-print("y length:", len(y))
-print("Unique labels:", y.unique())
-
-# 4. Train/Test Split
-
-# If y has only 1 class, remove stratify
-if len(y.unique()) > 1:
-    stratify_arg = y
-else:
-    stratify_arg = None
-    print("⚠️ Warning: Only one class found, disabling stratify.")
-
+# 4. Train-test split
 X_text_train, X_text_test, X_feat_train, X_feat_test, y_train, y_test = train_test_split(
-    X_text, X_features, y, test_size=0.2, random_state=42, stratify=stratify_arg
+    X_text, X_features, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# 5. Vectorize Text
+# 5. Text vectorization (TF-IDF)
+vectorizer = TfidfVectorizer(max_features=5000, stop_words='english')
+X_text_train_vec = vectorizer.fit_transform(X_text_train)
+X_text_test_vec = vectorizer.transform(X_text_test)
 
-vectorizer = TfidfVectorizer(max_features=5000)
-X_train_tfidf = vectorizer.fit_transform(X_text_train)
-X_test_tfidf = vectorizer.transform(X_text_test)
+# 6. Combine text + numerical features
+import scipy.sparse as sp
 
-# 6. Train Baseline Model
-model = LogisticRegression(max_iter=200)
-model.fit(X_train_tfidf, y_train)
+X_train = sp.hstack([X_text_train_vec, X_feat_train])
+X_test = sp.hstack([X_text_test_vec, X_feat_test])
 
-# 7. Evaluate
-y_pred = model.predict(X_test_tfidf)
+# 7. Train baseline model
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+# 8. Evaluate
+y_pred = model.predict(X_test)
 print("Accuracy:", accuracy_score(y_test, y_pred))
-print(classification_report(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
