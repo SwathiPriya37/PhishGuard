@@ -4,22 +4,21 @@ from sklearn.metrics import classification_report
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import BertTokenizer, BertForSequenceClassification
-from transformers import BertTokenizer, BertForSequenceClassification
 from torch.optim import AdamW   
 
 # Load dataset
 print("Loading dataset...")
-df = pd.read_csv("phishing_clean.csv")   # make sure path is correct
+df = pd.read_csv("C:/Users/Swathi priya/OneDrive/Documents/PhishGuard/data/phishing_email.csv")
 
 print("Initial data shape:", df.shape)
 print(df.head())
 
-# Use the correct text column
-df['text_combined'] = df['text_combined'].fillna("")
+# Use the correct text column (fix based on your dataset)
+df['clean_text'] = df['clean_text'].fillna("")
 
 # Split dataset
 X_train, X_test, y_train, y_test = train_test_split(
-    df['text_combined'], df['label'], test_size=0.2, random_state=42, stratify=df['label']
+    df['clean_text'], df['label'], test_size=0.2, random_state=42, stratify=df['label']
 )
 
 # Tokenizer
@@ -60,6 +59,8 @@ test_loader = DataLoader(test_dataset, batch_size=16)
 
 # Model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2)
 model = model.to(device)
 
